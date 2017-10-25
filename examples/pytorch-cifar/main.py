@@ -1,6 +1,8 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -79,13 +81,17 @@ if use_cuda:
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
+
+MOVING_AVG_SIZE = 10
+
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
+
+    accuracies = []
+    losses = []
+    loss_mean = 9999
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
@@ -96,13 +102,21 @@ def train(epoch):
         loss.backward()
         optimizer.step()
 
-        train_loss += loss.data[0]
-        _, predicted = torch.max(outputs.data, 1)
-        total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        # Calculate the loss
+        losses += [loss.data[0]]
+        loss_mean = np.array(losses[-MOVING_AVG_SIZE:]).mean()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        # Calculate the accuracy
+        _, predicted = torch.max(outputs.data, 1)
+        total = targets.size(0)
+        correct = predicted.eq(targets.data).cpu().sum()
+        accuracies += [correct/total]
+        accuracy = np.array(accuracies[-MOVING_AVG_SIZE:]).mean() * 100.0
+
+        # Show progress
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%%'
+            % (loss_mean, accuracy))
+
 
 def test(epoch):
     global best_acc
