@@ -1,0 +1,29 @@
+# Sample configuration file for a multi-core machine
+# Each worker is running on a seperate core
+---
+- nodes:
+  - {name: w1, host: localhost, port: 45000}
+  - {name: w2, host: localhost, port: 45001}
+  - {name: w3, host: localhost, port: 45002}
+  - {name: w4, host: localhost, port: 45003}
+
+# The probability of initiating a parameter pull request
+- pull_probability: 1
+
+# The timeout value is used for flow-control
+- timeout_ms: 2500
+
+# Choose interpolation method: clock, loss, loss_divergence, constant or linear
+- interpolation: loss_divergence
+
+# Individual interpolation methods configuration:
+
+- constant: { value: 0.5 }
+
+- linear: { start: 0.5, end: 0.05, target: 5000 }
+
+- clock: 0
+
+- loss: 0
+
+- loss_divergence: { target_divergence_loss: 0.2 }
