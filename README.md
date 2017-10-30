@@ -25,9 +25,22 @@ Configuration is supplied using a `.yaml` file. A sample configuration file can 
 The configuration file holds the following information:
 
 * `nodes`: a list of nodes participating in the cluster
-* `pull_probability`: probability of initiating a pull request to a random node, this can be a replacement to the **tau** variable used by the papers
-* `timeout_ms`: the timeout of each socket send/recv, a simple flow control mechanism is used for selecting the target peer, combined with a random term. In each timeout, we decrease the flow control score of the peer so it'll be less likely to get picked in the next iteration.
+* `pull_probability`: probability of initiating a pull request to a random node
+* `timeout_ms`: the timeout of each socket send/recv. A simple flow control mechanism is used for selecting the target peer, combined with a random term. In each timeout, we decrease the flow control score of the peer so it'll be less likely to get picked up in the next iteration, we increase the flow control score otherwise.
 * `interpolation`: the name of the method to be used to set the interpolation factor.
 * The rest of the configuration is for setting individual interpolation methods configuration.
 
-If you have any question or comment, feel free to contact me via email (see one of the commits), twitter (@guyzana) or whatever ;)
+## Training pytorch-cifar
+
+The examples folder contains a clone of the [pytorch-cifar](https://github.com/kuangliu/pytorch-cifar) repository, integrated with dpwa.
+
+Please do the following to start a cluster of nodes, each running on a different cpu core.
+
+1. Clone the project
+2. Install requirements: `pip install -r requirements.txt`
+3. `cd examples/pytorch-cifar`
+4. `./prepare.sh`
+5. Start training: `./run.sh`
+6. Stop (kill python3): `./stop.sh`
+
+If you have any questions or comments, feel free to contact me via email (see one of the commit messages), twitter (@guyzana) or whatever ;)
