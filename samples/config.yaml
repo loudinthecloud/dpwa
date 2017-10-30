@@ -7,8 +7,8 @@
   - {name: w3, host: localhost, port: 45002}
   - {name: w4, host: localhost, port: 45003}
 
-# The probability of initiating a parameter pull request
-- pull_probability: 1
+# The probability of initiating a fetch parameter request
+- fetch_probability: 1
 
 # The timeout value is used for flow-control
 - timeout_ms: 2500

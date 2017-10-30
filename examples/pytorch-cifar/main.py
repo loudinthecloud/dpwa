@@ -29,7 +29,7 @@ import logging
 def init_logging(filename):
     # Create the logs directory
     if not os.path.exists("./logs"):
-        os.path.mkdir("./logs")
+        os.mkdir("./logs")
 
     # Init logging to file
     logging.basicConfig(format='[%(asctime)s] [%(levelname)s] [%(name)s]  %(message)s',

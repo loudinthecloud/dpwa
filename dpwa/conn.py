@@ -1,9 +1,9 @@
 #
 # All workers communicate with each other via essentially a single RPC:
-# pull_parameters() which essentially requests the latest parameters
+# fetch_parameters() which essentially requests the latest parameters
 # from another worker.
 #
-# A flow-control mechanism is used to select the target to pull parameters
+# A flow-control mechanism is used to select the target to fetch parameters
 # from. A timeout value is used to limit the time spent waiting for a
 # chunk of data to arrive. Whenever the timeout expires, we decrease the score
 # of the target, and we increase it any time we succeed. The score is bounded,
@@ -14,7 +14,7 @@
 #       Holds the most up-to-date model parameters and state,
 #       it serves requests from the other workers.
 # TxThread:
-#       Initiating a pull request to all the other clients
+#       Initiating a fetch request to a random peer each time
 #
 """Async Client/Server implementation."""
 from copy import deepcopy
@@ -31,7 +31,7 @@ from .messaging import send_message, recv_message, MessageError
 LOGGER = logging.getLogger(__name__)
 
 
-MESSAGE_TYPE_PULL_PARAMETERS = 1
+MESSAGE_TYPE_FETCH_PARAMETERS = 1
 
 # This has the effect of holding 16MB per socket. Since each node holds
 # 2 sockets per peer, each node will need (16MB * 2 * nodes) of available
@@ -100,14 +100,14 @@ class RxThread(Thread):
             # The socket is blocking
             LOGGER.debug("RxThread: receiving message fd=%d", client_sock.fileno())
             message_type, _, _ = recv_message(client_sock)
-            assert message_type == MESSAGE_TYPE_PULL_PARAMETERS
+            assert message_type == MESSAGE_TYPE_FETCH_PARAMETERS
 
             # send the result
             if not self.have_state:
-                send_message(client_sock, MESSAGE_TYPE_PULL_PARAMETERS)
+                send_message(client_sock, MESSAGE_TYPE_FETCH_PARAMETERS)
             else:
                 with self.lock:
-                    send_message(client_sock, MESSAGE_TYPE_PULL_PARAMETERS, self.state, self.payload)
+                    send_message(client_sock, MESSAGE_TYPE_FETCH_PARAMETERS, self.state, self.payload)
 
         except (BrokenPipeError, ConnectionResetError):
             LOGGER.warning("Other end had a timeout, socket closed")
@@ -182,6 +182,7 @@ FLOW_CONTROL_DEC_SCORE = 100
 
 
 class WorkerConn:
+    """Describes a peer's state in the cluster."""
     def __init__(self, name, host, port):
         self.name = name
         self.host = host
@@ -261,10 +262,12 @@ class TxThread(Thread):
         return peer
 
     def _flow_control_inc(self, peer):
+        """Increase the flow control score of peer."""
         peer.flow_control_score = min(peer.flow_control_score + FLOW_CONTROL_INC_SCORE,
                                       FLOW_CONTROL_MAX_SCORE)
 
     def _flow_control_dec(self, peer):
+        """Decrease the flow control score of peer."""
         peer.flow_control_score = max(peer.flow_control_score - FLOW_CONTROL_DEC_SCORE,
                                       FLOW_CONTROL_MIN_SCORE)
 
@@ -277,8 +280,8 @@ class TxThread(Thread):
                 LOGGER.info("Exiting TxThread...")
                 break
 
-            # Wait until we succefully pull from a peer,
-            # or until we don't have any peers to pull from
+            # Wait until we succefully fetch from a peer,
+            # or until we don't have any peers to fetch from
             done = False
             while not done:
                 peer = self._get_random_peer()
@@ -289,11 +292,11 @@ class TxThread(Thread):
                     continue
 
                 try:
-                    # Send pull request
+                    # Send a fetch parameters request
                     LOGGER.debug("TxThread: Sending message fd=%d", peer.sock.fileno())
-                    send_message(peer.sock, MESSAGE_TYPE_PULL_PARAMETERS)
+                    send_message(peer.sock, MESSAGE_TYPE_FETCH_PARAMETERS)
                     message_type, self.peer_message, self.peer_payload = recv_message(peer.sock)
-                    assert message_type == MESSAGE_TYPE_PULL_PARAMETERS
+                    assert message_type == MESSAGE_TYPE_FETCH_PARAMETERS
 
                     self._flow_control_inc(peer)
                     done = self.peer_payload is not None
@@ -313,10 +316,15 @@ class TxThread(Thread):
 
         LOGGER.info("TxThread: exiting...")
 
-    def pull_send(self):
+    def fetch_send(self):
+        """Initiate an async fetch_parameters request.
+
+        Selects a random peer and fetch its latest parameters.
+        """
         self._queue.put(True)
 
-    def pull_wait(self):
+    def fetch_wait(self):
+        """Waits for the fetch_parameters request to complete."""
         self._queue.join()
         return self.peer_message, self.peer_payload
 

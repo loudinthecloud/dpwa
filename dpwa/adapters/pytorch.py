@@ -40,6 +40,12 @@ class DpwaPyTorchAdapter:
         self._conn = DpwaConnection(name, config_file)
 
     def update_send(self, loss):
+        """Initiate an update to the cluster.
+
+        Performs 2 things:
+        1. Updates the local server with the latest parameters, so other peers could fetch them
+        2. Initiate a fetch parameters request to a random peer.
+        """
         params = {}
         for name, param in self._net.named_parameters():
             params[name] = _tensor_to_buffer(param.data)
@@ -47,6 +53,10 @@ class DpwaPyTorchAdapter:
         self._conn.update_send(blob, loss)
 
     def update_wait(self, loss):
+        """Waits for the cluster update to finish.
+
+        Waiting for the fetch parameters request to complete (blocking)
+        """
         blob, factor = self._conn.update_wait(loss)
         if blob is None:
             return
