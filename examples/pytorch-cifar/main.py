@@ -16,15 +16,43 @@ import os
 import argparse
 
 from models import *
-from utils import progress_bar
 from torch.autograd import Variable
+
+
+import sys
+ext_path = os.path.abspath(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+sys.path.append(ext_path)
+from dpwa.adapters.pytorch import DpwaPyTorchAdapter
+
+
+import logging
+def init_logging(filename):
+    # Create the logs directory
+    if not os.path.exists("./logs"):
+        os.path.mkdir("./logs")
+
+    # Init logging to file
+    logging.basicConfig(format='[%(asctime)s] [%(levelname)s] [%(name)s]  %(message)s',
+                        filename="./logs/%s" % filename,
+                        filemode='w',
+                        level=logging.DEBUG)
+
+    # logging.getLogger("dpwa.conn").setLevel(logging.INFO)
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--batch-size', type=int, default=128, help='Set the batch size (default: 128)')
+parser.add_argument('--config-file', type=str, required=True, help='Dpwa configuration file')
+parser.add_argument('--name', type=str, required=True, help="This worker's name within config file")
+
 args = parser.parse_args()
+
+init_logging(args.name + ".log")
 
 batch_size = args.batch_size
 print("Using batch_size =", batch_size)
@@ -82,6 +110,8 @@ if use_cuda:
     net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
     cudnn.benchmark = True
 
+
+conn = DpwaPyTorchAdapter(net, args.name, args.config_file)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
@@ -97,6 +127,8 @@ def train(epoch):
     losses = []
     loss_mean = 9999
     for batch_idx, (inputs, targets) in enumerate(trainloader):
+        if batch_idx > MOVING_AVG_SIZE:
+            conn.update_send(loss_mean)
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
         optimizer.zero_grad()
@@ -109,6 +141,8 @@ def train(epoch):
         # Calculate the loss
         losses += [loss.data[0]]
         loss_mean = np.array(losses[-MOVING_AVG_SIZE:]).mean()
+        if batch_idx > MOVING_AVG_SIZE:
+            conn.update_wait(loss_mean)
 
         # Calculate the accuracy
         _, predicted = torch.max(outputs.data, 1)
@@ -118,8 +152,10 @@ def train(epoch):
         accuracy = np.array(accuracies[-MOVING_AVG_SIZE:]).mean() * 100.0
 
         # Show progress
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%%'
-            % (loss_mean, accuracy))
+        progress = "[%s] E%d | B%d | Loss: %.3f | Acc: %.3f%%" % \
+                   (args.name, epoch, batch_idx, loss_mean, accuracy)
+        print(progress)
+        LOGGER.info(progress)
 
 
 def test(epoch):
@@ -140,8 +176,12 @@ def test(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        progress = "[%s] E%d | B%d | Loss: %.3f | Acc: %.3f%% (%d/%d)" % \
+                   (args.name, epoch, batch_idx, test_loss/(batch_idx+1), 100.*correct/total, correct, total)
+        print(progress)
+        LOGGER.info(progress)
+        # progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        #    % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
