@@ -149,7 +149,7 @@ class DpwaConnection:
         # Update local clock
         new_clock = factor * peer_clock + (1 - factor) * self.clock
 
-        LOGGER.debug("update_wait(): clock=%f, peer_clock=%f, loss=%s, peer_loss=%f, factor=%f, new_clock=%f",
+        LOGGER.debug("update_wait(): (clock=%f, peer_clock=%f), (loss=%s, peer_loss=%f) => factor=%f, new_clock=%f",
                      self.clock, peer_clock, loss, peer_loss, factor, new_clock)
 
         self.clock = new_clock
