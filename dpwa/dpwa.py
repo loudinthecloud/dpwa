@@ -4,17 +4,14 @@ import random
 import yaml
 
 from .conn import RxThread, TxThread
-from .interpolation import ConstantInterpolation, LinearInterpolation, \
-                           ClockWeightedInterpolation, LossInterpolation, \
-                           LossDivergenceInterpolation
+from .interpolation import ConstantInterpolation, \
+                           ClockWeightedInterpolation, LossInterpolation
 
 
 INTERPOLATION_METHODS = {
     'constant': ConstantInterpolation,
-    'linear': LinearInterpolation,
     'clock': ClockWeightedInterpolation,
     'loss': LossInterpolation,
-    'loss_divergence': LossDivergenceInterpolation,
 }
 
 
