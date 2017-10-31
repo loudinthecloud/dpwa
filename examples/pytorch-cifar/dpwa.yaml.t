@@ -11,6 +11,9 @@
 # Choose interpolation method: clock, loss or constant
 - interpolation: constant
 
+# Diverge models when loss is reaching the value specified here (use 0 to disable)
+- divergence_threshold: 0.5
+
 # Individual interpolation methods configuration:
 
 - constant: { value: 0.5 }

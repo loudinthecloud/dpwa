@@ -47,6 +47,9 @@ class DpwaConfiguration:
     def get_fetch_probability(self):
         return self.config['fetch_probability']
 
+    def get_divergence_threshold(self):
+        return self.config['divergence_threshold']
+
 
 class DpwaConnection:
     def __init__(self, name, config_file):
@@ -74,6 +77,7 @@ class DpwaConnection:
         if interpolation_config == 0:
             interpolation_config = {}
         self.interpolation = INTERPOLATION_METHODS[interpolation_method](**interpolation_config)
+        self.divergence_threshold = self.config.get_divergence_threshold()
 
         # Create the client/server threads
         timeout_ms = self.config.get_timeoutms()
@@ -137,6 +141,10 @@ class DpwaConnection:
 
         # Calculate the averaging factor using the interpolation method chosen
         factor = self.interpolation(self.clock, peer_clock, loss, peer_loss)
+
+        # Diverge models as loss decrease below the threshold
+        if loss < self.divergence_threshold:
+            factor = factor * (loss / self.divergence_threshold)
 
         # Update local clock
         new_clock = factor * peer_clock + (1 - factor) * self.clock

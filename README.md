@@ -54,6 +54,7 @@ The configuration file holds the following information:
 * `fetch_probability`: probability of initiating a fetch parameters request from a random peer
 * `timeout_ms`: the timeout of each socket send/recv. A simple flow control mechanism is used for selecting the target peer, combined with a random term. In each timeout, we decrease the flow control score of the peer so it'll be less likely to get picked up in the next iteration, we increase the flow control score otherwise.
 * `interpolation`: the name of the method to be used to set the interpolation factor.
+* `divergence_threshold`: controls the threshold loss value to start diverging the models, if not zero, and the `loss` is below the threshold, it'll decrease the interpolation factor by `(loss / divergence_threshold)`, regardless of the interplation method.
 * The rest of the configuration is for setting individual interpolation methods configuration.
 
 Here's a sample configuration file:
@@ -77,6 +78,8 @@ Here's a sample configuration file:
 # Choose interpolation method: clock, loss or constant
 - interpolation: constant
 
+# Diverge models when loss is reaching the value specified here (use 0 to disable)
+- divergence_threshold: 0.2
 
 # Individual interpolation methods configuration:
 
@@ -87,6 +90,15 @@ Here's a sample configuration file:
 - loss: 0
 ```
 
+### Interpolation Methods
+
+The interpolation methods controls how the interpolation/averaging factor is calculated. Averaging is done using the following equation: `params = factor * peer_params + (1 - factor) * params`. currently the following methods are supported:
+
+* `Constant`: The factor is constant, the papers above used a constant factor value derived theoretically.
+* `Clock`: Uses the following equation `factor = peer_clock / (clock + peer_clock)`, the factor increase when the peer's clock is larger.
+* `Loss`: Same as clock, but uses the loss value instead of the clock value.
+
+**NOTE:** The `Clock` and `Loss` interpolation methods are not published, nor backed by experiments and comparisons yet, they are here only for reference but you may try to see how they work for your model.
 
 ## Training pytorch-cifar
 
